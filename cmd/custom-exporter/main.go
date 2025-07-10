@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +20,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gopkg.in/yaml.v3"
 )
+
+// Global variable to store server start time
+var serverStartTime = time.Now()
+
+// Embed the HTML file at compile time
+//go:embed static/index.html
+var htmlContent embed.FS
 
 // Config represents the main configuration structure
 type Config struct {
@@ -295,8 +304,15 @@ func loadConfig(filename string) (*Config, error) {
 }
 
 func main() {
+    // Define the --config flag with a default value and description
+    port := flag.String("port", "9100", "Serve app at the specified port.")
+    configPath := flag.String("config", "export.yaml", "Path to the YAML export configuration file.")
+
+    // Parse all command-line flags
+    flag.Parse()
+
     // Load configuration
-    config, err := loadConfig("export.yaml")
+    config, err := loadConfig(*configPath)
     if err != nil {
         log.Fatalf("Failed to load configuration: %v", err)
     }
@@ -318,7 +334,6 @@ func main() {
     })
 
     // Uptime endpoint - returns uptime in seconds
-    var serverStartTime = time.Now()
     http.HandleFunc("/uptime", func(w http.ResponseWriter, r *http.Request) {
         uptime := time.Since(serverStartTime).Seconds()
         w.Header().Set("Content-Type", "text/plain")
@@ -333,9 +348,9 @@ func main() {
             http.NotFound(w, r)
             return
         }
-        
+
         // Load HTML to serve at root
-        html, err := os.ReadFile("static/index.html")
+        html, err := htmlContent.ReadFile("static/index.html")
         if err != nil {
             log.Fatalf("Failed to load HTML: %v", err)
         }
@@ -346,15 +361,9 @@ func main() {
         w.Write([]byte(html))
     })
 
-    // Start server
-    port := os.Getenv("EXPORTER_PORT")
-    if port == "" {
-        port = "9100"
-    }
-
-    log.Printf("Custom Exporter starting on port %s", port)
-    log.Printf("Metrics endpoint: http://localhost:%s/metrics", port)
-    log.Fatal(http.ListenAndServe(":"+port, nil))
+    log.Printf("Custom Exporter starting on port %s", *port)
+    log.Printf("Metrics endpoint: http://localhost:%s/metrics", *port)
+    log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
 
 
