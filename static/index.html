@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Node Exporter - Health Check</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header {
+            margin-bottom: 2rem;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #ff6b6b, #ffa500);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 2rem;
+            color: white;
+            font-weight: bold;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .status {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 1.5rem 0;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .status.healthy::before {
+            content: "✓";
+            margin-right: 0.5rem;
+            font-size: 1.3rem;
+        }
+        
+        .status.unhealthy {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+        
+        .status.unhealthy::before {
+            content: "✗";
+            margin-right: 0.5rem;
+            font-size: 1.3rem;
+        }
+        
+        .links {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #495057;
+            border: 2px solid #dee2e6;
+        }
+        
+        .btn-secondary:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+            transform: translateY(-1px);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: left;
+        }
+        
+        .info-card h3 {
+            color: #495057;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-card p {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e9ecef;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .last-updated {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 1.5rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .links {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">CE</div>
+            <h1>Custom Node Exporter</h1>
+            <p class="subtitle">Health Check Dashboard</p>
+        </div>
+        
+        <div id="status" class="status healthy">Service is Running</div>
+        
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>Status</h3>
+                <p id="status-text">All systems operational</p>
+            </div>
+            <div class="info-card">
+                <h3>Uptime</h3>
+                <p id="uptime">Calculating...</p>
+            </div>
+            <div class="info-card">
+                <h3>Last Check</h3>
+                <p id="last-check">Just now</p>
+            </div>
+            <div class="info-card">
+                <h3>Auto Refresh</h3>
+                <p>Every 5 seconds</p>
+            </div>
+        </div>
+        
+        <div class="links">
+            <a href="/metrics" class="btn btn-primary">
+                📊 View Metrics
+            </a>
+            <a href="/" class="btn btn-secondary">
+                🔄 Refresh Status
+            </a>
+        </div>
+        
+        <div class="last-updated">
+            Server started: <span id="server-start">Loading...</span>
+        </div>
+        
+        <div class="footer">
+            <p>Custom Node Exporter - Prometheus Compatible</p>
+        </div>
+    </div>
+
+    <script>
+        // Calculate server start time based on current uptime
+        let serverStartTime = null;
+        
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / (24 * 60 * 60));
+            const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+            const minutes = Math.floor((seconds % (60 * 60)) / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            
+            let uptimeText = '';
+            if (days > 0) {
+                uptimeText += days + 'd ';
+            }
+            if (hours > 0 || days > 0) {
+                uptimeText += hours + 'h ';
+            }
+            if (minutes > 0 || hours > 0 || days > 0) {
+                uptimeText += minutes + 'm ';
+            }
+            uptimeText += remainingSeconds + 's';
+            
+            return uptimeText;
+        }
+        
+        function updateUptime() {
+            fetch('/uptime')
+                .then(response => response.text())
+                .then(uptimeSeconds => {
+                    const uptime = parseFloat(uptimeSeconds);
+                    document.getElementById('uptime').textContent = formatUptime(uptime);
+                    
+                    // Calculate server start time if not already set
+                    if (!serverStartTime) {
+                        serverStartTime = new Date(Date.now() - (uptime * 1000));
+                        document.getElementById('server-start').textContent = serverStartTime.toLocaleString();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching uptime:', error);
+                    document.getElementById('uptime').textContent = 'Error loading';
+                });
+        }
+        
+        function updateLastCheck() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('last-check').textContent = timeString;
+        }
+        
+        function checkHealth() {
+            fetch('/health')
+                .then(response => {
+                    const statusElement = document.getElementById('status');
+                    const statusTextElement = document.getElementById('status-text');
+                    
+                    if (response.ok) {
+                        statusElement.className = 'status healthy';
+                        statusElement.textContent = 'Service is Running';
+                        statusTextElement.textContent = 'All systems operational';
+                    } else {
+                        statusElement.className = 'status unhealthy';
+                        statusElement.textContent = 'Service Error';
+                        statusTextElement.textContent = 'Health check failed';
+                    }
+                    
+                    updateLastCheck();
+                })
+                .catch(error => {
+                    const statusElement = document.getElementById('status');
+                    const statusTextElement = document.getElementById('status-text');
+                    
+                    statusElement.className = 'status unhealthy';
+                    statusElement.textContent = 'Service Unavailable';
+                    statusTextElement.textContent = 'Connection failed';
+                    
+                    updateLastCheck();
+                });
+        }
+        
+        // Initialize
+        updateUptime();
+        updateLastCheck();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            checkHealth();
+            updateUptime();
+        }, 5000);
+    </script>
+</body>
+</html>
