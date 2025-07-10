@@ -1,5 +1,5 @@
 # 🧪 Custom Exporter for Prometheus
-**A flexible Prometheus exporter with YAML-based configuration for collecting metrics from shell commands, HTTP endpoints, or files.**
+A flexible Prometheus exporter with YAML-based configuration for collecting metrics from shell commands, HTTP endpoints, or files.
 
 ## 🔧 Features
 
