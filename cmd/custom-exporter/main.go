@@ -310,10 +310,40 @@ func main() {
     // Set up HTTP server
     http.Handle("/metrics", promhttp.Handler())
 
-    // Health (root) check endpoint
-    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+    // Health check endpoint
+    http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/html")
         w.WriteHeader(http.StatusOK)
         w.Write([]byte("OK"))
+    })
+
+    // Uptime endpoint - returns uptime in seconds
+    var serverStartTime = time.Now()
+    http.HandleFunc("/uptime", func(w http.ResponseWriter, r *http.Request) {
+        uptime := time.Since(serverStartTime).Seconds()
+        w.Header().Set("Content-Type", "text/plain")
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte(fmt.Sprintf("%.0f", uptime)))
+    })
+
+    // Root endpoint - serve HTML
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        // Only serve HTML for exact root path
+        if r.URL.Path != "/" {
+            http.NotFound(w, r)
+            return
+        }
+        
+        // Load HTML to serve at root
+        html, err := os.ReadFile("static/index.html")
+        if err != nil {
+            log.Fatalf("Failed to load HTML: %v", err)
+        }
+
+        // Serve HTML
+        w.Header().Set("Content-Type", "text/html")
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte(html))
     })
 
     // Start server
