@@ -1,7 +1,333 @@
 package main
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gopkg.in/yaml.v3"
+)
+
+// Config represents the main configuration structure
+type Config struct {
+    Exporters []Exporter `yaml:"exporters"`
+}
+
+// Exporter represents a single metric exporter configuration
+type Exporter struct {
+    Name        string            `yaml:"name"`
+    Type        string            `yaml:"type"`                 // "command", "http", "file"
+    Command     string            `yaml:"command,omitempty"`
+    URL         string            `yaml:"url,omitempty"`
+    FilePath    string            `yaml:"file_path,omitempty"`
+    Interval    int               `yaml:"interval"`             // seconds
+    MetricType  string            `yaml:"metric_type"`          // "gauge", "counter"
+    Parser      Parser            `yaml:"parser"`
+    Labels      map[string]string `yaml:"labels,omitempty"`
+    Description string            `yaml:"description"`
+}
+
+// Parser defines how to parse the output
+type Parser struct {
+    Type     string `yaml:"type"`                               // "regex", "json", "line", "split"
+    Pattern  string `yaml:"pattern,omitempty"`
+    JsonPath string `yaml:"json_path,omitempty"`
+    LineNum  int    `yaml:"line_num,omitempty"`
+    Split    string `yaml:"split,omitempty"`
+    Index    int    `yaml:"index,omitempty"`
+}
+
+// CustomCollector implements prometheus.Collector
+type CustomCollector struct {
+    config    *Config
+    metrics   map[string]prometheus.Metric
+    lastFetch map[string]time.Time
+}
+
+// NewCustomCollector creates a new custom collector
+func NewCustomCollector(config *Config) *CustomCollector {
+    return &CustomCollector{
+        config: config,
+        metrics: make(map[string]prometheus.Metric),
+        lastFetch: make(map[string]time.Time),
+    }
+}
+
+// Describe implements prometheus.Collector
+func (c *CustomCollector) Describe(ch chan<- *prometheus.Desc) {
+    // Prometheus will call this to get metric descriptions
+    for _, exporter := range c.config.Exporters {
+        desc := prometheus.NewDesc(
+            exporter.Name,
+            exporter.Description,
+            nil,
+            exporter.Labels,
+        )
+        ch <- desc
+    }
+}
+
+// Collect implements prometheus.Collector
+func (c *CustomCollector) Collect(ch chan<- prometheus.Metric) {
+    for _, exporter := range c.config.Exporters {
+        // Check if we need to fetch new data based on interval
+        if time.Since(c.lastFetch[exporter.Name]) < time.Duration(exporter.Interval)*time.Second {
+            // Use cached metric if available
+            if metric, exists := c.metrics[exporter.Name]; exists {
+                ch <- metric
+                continue
+            }
+        }
+
+        // Fetch new data
+        value, err := c.fetchData(exporter)
+        if err != nil {
+            log.Printf("Error fetching data for %s: %v", exporter.Name, err)
+        }
+
+        // Create metric
+        desc := prometheus.NewDesc(
+            exporter.Name,
+            exporter.Description,
+            nil, 
+            exporter.Labels,
+        )
+
+        // Make const metric based on type: gauge, counter
+        var metric prometheus.Metric
+        switch exporter.MetricType {
+        case "counter":
+            metric = prometheus.MustNewConstMetric(desc, prometheus.CounterValue, value)
+        default: // gauge
+            metric = prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value)
+        }
+
+        // Cache the metric and update fetch time
+        c.metrics[exporter.Name] = metric
+        c.lastFetch[exporter.Name] = time.Now()
+
+        ch <- metric
+    }
+}
+
+// fetchData fetches data based on the exporter configuration
+func (c *CustomCollector) fetchData(exporter Exporter) (float64, error) {
+    var rawData string
+    var err error 
+
+    switch exporter.Type {
+    case "command":
+        rawData, err = c.executeCommand(exporter.Command)
+    case "http":
+        rawData, err = c.fetchHTTP(exporter.URL)
+    case "file": 
+        rawData, err = c.readFile(exporter.FilePath)
+    default:
+        return 0, fmt.Errorf("unsupported exporter type: %s", exporter.Type)
+    }
+
+    if err != nil {
+        return 0, err
+    }
+
+    // Parse the raw data
+    return c.parseData(rawData, exporter.Parser)
+}
+
+// executeCommand executes a shell command and returns the output
+func (c *CustomCollector) executeCommand(command string) (string, error) {
+    var out bytes.Buffer
+    cmd := exec.Command("sh", "-c", command)
+    cmd.Stdout = &out 
+    cmd.Stderr = &out
+
+    err := cmd.Run()
+    if err != nil {
+        return "", fmt.Errorf("command execution failed: %v, output: %s", err, out.String())
+    }
+
+    return out.String(), nil 
+}
+
+// fetchHTTP fetchs data from HTTP endpoint
+func (c *CustomCollector) fetchHTTP(url string) (string, error) {
+    client := &http.Client{Timeout: 10 * time.Second}
+    resp, err := client.Get(url)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return "", err 
+    }
+
+    return string(body), nil
+}
+
+// readFile reads data from a file
+func (c *CustomCollector) readFile(filePath string) (string, error) {
+    data, err := os.ReadFile(filePath)
+    if err != nil {
+        return "", err 
+    }
+    return string(data), nil 
+}
+
+// parseData parses the raw data based on the parser configuration
+func (c *CustomCollector) parseData(rawData string, parser Parser) (float64, error) {
+    var result string 
+
+    switch parser.Type {
+    case "regex":
+        re, err := regexp.Compile(parser.Pattern)
+        if err != nil {
+            return 0, fmt.Errorf("invalid regex pattern: %v", err) 
+        }
+
+        matches := re.FindStringSubmatch(rawData)
+        if len(matches) < 2 {
+            return 0, fmt.Errorf("regex pattern did not match or capture group not found") 
+        }
+        result = matches[1]
+    
+    case "json":
+        var jsonData interface{}
+        err := json.Unmarshal([]byte(rawData), &jsonData)
+        if err != nil {
+            return 0, fmt.Errorf("failed to parse JSON: %v", err)
+        }
+        
+        // Using simple JSON path parsing (supports bsic dot notation, e.g.: "connections.active")
+        result, err = c.extractJSONValue(jsonData, parser.JsonPath)
+        if err != nil {
+            return 0, err 
+        }
+
+    case "line":
+        lines := strings.Split(strings.TrimSpace(rawData), "\n")
+        if parser.LineNum >= len(lines) || parser.LineNum < 0 {
+            return 0, fmt.Errorf("line number %d out of range", parser.LineNum)
+        }
+        result = strings.TrimSpace(lines[parser.LineNum])
+
+    case "split":
+        parts := strings.Split(strings.TrimSpace(rawData), parser.Split)
+        if parser.Index >= len(parts) || parser.Index < 0 {
+            return 0, fmt.Errorf("split index %d out of range", parser.Index)
+        }
+        result = strings.TrimSpace(parts[parser.Index])
+        
+    default:
+        // Try to parse the entire string as a number
+        result = strings.TrimSpace(rawData)
+    }
+
+    // Convert to float64
+    value, err := strconv.ParseFloat(result, 64)
+    if err != nil {
+        return 0, fmt.Errorf("failed to parse value as a number: %v", err)
+    }
+
+    return value, nil
+}
+
+// extractJSONValue extracts a value from JSON data using a simple dot path
+func (c *CustomCollector) extractJSONValue(data interface{}, path string) (string, error) {
+    if path == "" {
+        return fmt.Sprintf("%v", data), nil 
+    }
+
+    parts := strings.Split(path, ".")
+    current := data 
+    for _, part := range parts {
+        switch v := current.(type) {
+        case map[string]interface{}:
+            if val, exists := v[part]; exists {
+                current = val 
+            } else {
+                return "", fmt.Errorf("JSON path not found: %s", part)
+            }
+
+        case []interface{}:
+            index, err := strconv.Atoi(part)
+            if err != nil {
+                return "", fmt.Errorf("invalid array index: %s", part)
+            }
+            if index >= len(v) || index < 0 {
+                return "", fmt.Errorf("array index out of range: %d", index)
+            }
+            current = v[index]
+        default:
+            return "", fmt.Errorf("cannot navigate JSON path at: %s", part)
+        }
+    }
+
+    return fmt.Sprintf("%v", current), nil
+}
+
+// loadConfig loads the configuration from a YAML file
+func loadConfig(filename string) (*Config, error) {
+    data, err := os.ReadFile(filename)
+    if err != nil {
+        return nil, err
+    }
+
+    var config Config
+    err = yaml.Unmarshal(data, &config)
+    if err != nil {
+        return nil, err
+    }
+
+    return &config, nil
+}
 
 func main() {
-    fmt.Println("Hello, World!")
+    // Load configuration
+    config, err := loadConfig("export.yaml")
+    if err != nil {
+        log.Fatalf("Failed to load configuration: %v", err)
+    }
+
+    // Create custom collector
+    collector := NewCustomCollector(config)
+
+    // Register the collector
+    prometheus.MustRegister(collector)
+
+    // Set up HTTP server
+    http.Handle("/metrics", promhttp.Handler())
+
+    // Health (root) check endpoint
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("OK"))
+    })
+
+    // Start server
+    port := os.Getenv("EXPORTER_PORT")
+    if port == "" {
+        port = "9100"
+    }
+
+    log.Printf("Custom Exporter starting on port %s", port)
+    log.Printf("Metrics endpoint: http://localhost:%s/metrics", port)
+    log.Fatal(http.ListenAndServe(":"+port, nil))
 }
+
+
+
+
+
