@@ -62,15 +62,6 @@ For full configuration examples, see [`export.yaml.example`](./export.yaml.examp
 | `line`  | Gets a specific line by number (`line_num`).    |
 | `split` | Splits text by delimiter and selects index.     |
 
-## 🖥️ HTTP Endpoints
-
-| Endpoint   | Description                   |
-| ---------- | ----------------------------- |
-| `/metrics` | Prometheus metrics            |
-| `/uptime`  | Uptime in seconds             |
-| `/health`  | Simple health check (`OK`)    |
-| `/`        | Serves static HTML (optional) |
-
 ## 📦 Output Example
 
 ```bash
@@ -80,6 +71,15 @@ For full configuration examples, see [`export.yaml.example`](./export.yaml.examp
 # TYPE example_command_metric gauge
 example_command_metric{source="shell"} 42
 ```
+
+## 🖥️ HTTP Endpoints
+
+| Endpoint   | Description                   |
+| ---------- | ----------------------------- |
+| `/metrics` | Prometheus metrics            |
+| `/uptime`  | Uptime in seconds             |
+| `/health`  | Simple health check (`OK`)    |
+| `/`        | Serves static HTML (optional) |
 
 ## 🛠 Advanced Usage
 
