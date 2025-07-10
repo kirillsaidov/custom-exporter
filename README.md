@@ -3,12 +3,12 @@ A flexible Prometheus exporter with YAML-based configuration for collecting metr
 
 ## 🔧 Features
 
-* ⚙️ **YAML-Driven Configuration** — Define exporters easily in a single YAML file.
-* 🧾 **Multiple Sources** — Collect metrics from:
+* ⚙️ **YAML-Driven Configuration** - Define exporters easily in a single YAML file.
+* 🧾 **Multiple Sources** - Collect metrics from:
   * Shell commands
   * HTTP APIs
   * Local files
-* 🔍 **Flexible Parsing** — Use `regex`, `json`, `line`, or `split` to extract metrics.
+* 🔍 **Flexible Parsing** - Use `regex`, `json`, `line`, or `split` to extract metrics.
 * 📊 **Gauge & Counter** metric types.
 * 📡 Exposes `/metrics`, `/uptime`, and `/health` endpoints.
 * 🖥️ Serves a static HTML page at `/`.
