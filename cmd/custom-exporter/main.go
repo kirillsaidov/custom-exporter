@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+    "sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -62,6 +63,7 @@ type CustomCollector struct {
     config    *Config
     metrics   map[string]prometheus.Metric
     lastFetch map[string]time.Time
+    mutex     sync.RWMutex
 }
 
 // NewCustomCollector creates a new custom collector
@@ -90,11 +92,17 @@ func (c *CustomCollector) Describe(ch chan<- *prometheus.Desc) {
 // Collect implements prometheus.Collector
 func (c *CustomCollector) Collect(ch chan<- prometheus.Metric) {
     for _, exporter := range c.config.Exporters {
+        // Read cached data with mutex to avoid race conditions
+        c.mutex.RLock()
+        lastFetchTime, exists := c.lastFetch[exporter.Name]
+        cachedMetric, hasCached := c.metrics[exporter.Name]
+        c.mutex.RUnlock()
+
         // Check if we need to fetch new data based on interval
-        if time.Since(c.lastFetch[exporter.Name]) < time.Duration(exporter.Interval)*time.Second {
+        if exists && time.Since(lastFetchTime) < time.Duration(exporter.Interval)*time.Second {
             // Use cached metric if available
-            if metric, exists := c.metrics[exporter.Name]; exists {
-                ch <- metric
+            if hasCached {
+                ch <- cachedMetric
                 continue
             }
         }
@@ -122,9 +130,11 @@ func (c *CustomCollector) Collect(ch chan<- prometheus.Metric) {
             metric = prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value)
         }
 
-        // Cache the metric and update fetch time
+        // Cache the metric and update fetch time with mutex to avoid race conditions
+        c.mutex.Lock()
         c.metrics[exporter.Name] = metric
         c.lastFetch[exporter.Name] = time.Now()
+        c.mutex.Unlock()
 
         ch <- metric
     }
