@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -14,7 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-    "sync"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -166,11 +167,17 @@ func (c *CustomCollector) fetchData(exporter Exporter) (float64, error) {
 
 // executeCommand executes a shell command and returns the output
 func (c *CustomCollector) executeCommand(command string) (string, error) {
+    // Add timeout to prevent hanging
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    // Init command
     var out bytes.Buffer
-    cmd := exec.Command("sh", "-c", command)
+    cmd := exec.CommandContext(ctx, "sh", "-c", command)
     cmd.Stdout = &out 
     cmd.Stderr = &out
 
+    // Run command
     err := cmd.Run()
     if err != nil {
         return "", fmt.Errorf("command execution failed: %v, output: %s", err, out.String())
