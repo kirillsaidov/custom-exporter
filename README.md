@@ -20,7 +20,7 @@ A flexible Prometheus exporter with YAML-based configuration for collecting metr
 ```bash
 git clone https://github.com/kirillsaidov/custom-exporter.git
 cd custom-exporter
-go build -o custom-exporter
+go build -o custom-exporter cmd/custom-exporter/main.go
 ```
 
 ### 2. Run the Exporter
