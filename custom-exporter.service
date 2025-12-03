@@ -1,0 +1,14 @@
+[Unit]
+Description=Custom Exporter for Prometheus
+After=network.target
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=path-to-repo/custom-exporter/custom-exporter --config path-to-repo/custom-exporter/export.yaml --port 9101
+EnvironmentFile=path-to-repo/custom-exporter/custom-exporter.env
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
