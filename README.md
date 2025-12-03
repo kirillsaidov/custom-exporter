@@ -1,19 +1,19 @@
-# 🧪 Custom Exporter for Prometheus
+# Custom Exporter for Prometheus
 A flexible Prometheus exporter with YAML-based configuration for collecting metrics from shell commands, HTTP endpoints, or files.
 
-## 🔧 Features
+## Features
 
-* ⚙️ **YAML-Driven Configuration** - Define exporters easily in a single YAML file.
-* 🧾 **Multiple Sources** - Collect metrics from:
+* **YAML-Driven Configuration** - Define exporters easily in a single YAML file.
+* **Multiple Sources** - Collect metrics from:
   * Shell commands
   * HTTP APIs
   * Local files
-* 🔍 **Flexible Parsing** - Use `regex`, `json`, `line`, or `split` to extract metrics.
-* 📊 **Gauge & Counter** metric types.
-* 📡 Exposes `/metrics`, `/uptime`, and `/health` endpoints.
-* 🖥️ Serves a static HTML page at `/`.
+* **Flexible Parsing** - Use `regex`, `json`, `line`, or `split` to extract metrics.
+* **Gauge & Counter** metric types.
+* Exposes `/metrics`, `/uptime`, and `/health` endpoints.
+* Serves a static HTML page at `/`.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone and Build
 
@@ -71,7 +71,7 @@ exporters:
 
 For full configuration examples, see [`export.yaml.example`](./export.yaml.example).
 
-## 🧠 Parser Types
+## Parser Types
 
 | Type    | Description                                     |
 | ------- | ----------------------------------------------- |
@@ -80,7 +80,7 @@ For full configuration examples, see [`export.yaml.example`](./export.yaml.examp
 | `line`  | Gets a specific line by number (`line_num`).    |
 | `split` | Splits text by delimiter and selects index.     |
 
-## 📦 Output Example
+## Output Example
 
 ```bash
 # curl http://localhost:9100/metrics
@@ -90,7 +90,7 @@ For full configuration examples, see [`export.yaml.example`](./export.yaml.examp
 example_command_metric{source="shell"} 42
 ```
 
-## 🖥️ HTTP Endpoints
+## HTTP Endpoints
 
 | Endpoint   | Description                   |
 | ---------- | ----------------------------- |
@@ -99,7 +99,7 @@ example_command_metric{source="shell"} 42
 | `/health`  | Simple health check (`OK`)    |
 | `/`        | Serves static HTML (optional) |
 
-## 🛠 Advanced Usage
+## Advanced Usage
 
 * Multiple exporters with different intervals and sources
 * Dynamic labels
