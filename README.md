@@ -26,6 +26,7 @@ go build -o custom-exporter cmd/custom-exporter/main.go
 ### 2. Run the Exporter
 #### Run manully
 ```bash
+source ./custom-exporter.env
 ./custom-exporter --config export.yaml --port 9100
 ```
 
@@ -33,37 +34,17 @@ go build -o custom-exporter cmd/custom-exporter/main.go
 * Default port: `9100`
 
 #### Setup `systemd` service
-Create `custom-exporter.service` file:
-```sh
-[Unit]
-Description=Custom Exporter for Prometheus
-After=network.target
-StartLimitBurst=5
-
-[Service]
-Type=simple
-ExecStart=%h/custom-exporter/custom-exporter --config %h/custom-exporter/export.yaml --port 9100
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-```
-`%h` - stands for `HOME` directory.
-
-Run the service:
-```sh
-# 1. create service directory and copy file
-mkdir -p ~/.config/systemd/user
-cp custom-exporter.service ~/.config/systemd/user/
+```bash
+# 1. Copy service file
+sudo cp ./custom-exporter.service /etc/systemd/system/
 
 # 2. enable and start the service
-systemctl --user daemon-reload
-systemctl --user enable custom-exporter
-systemctl --user start custom-exporter
+sudo systemctl daemon-reload
+sudo systemctl enable custom-exporter
+sudo systemctl start custom-exporter
 
 # 3. check status
-systemctl --user status custom-exporter
+sudo systemctl status custom-exporter
 ```
 
 ### 3. Example YAML Configuration
