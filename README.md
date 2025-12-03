@@ -35,15 +35,18 @@ source ./custom-exporter.env
 
 #### Setup `systemd` service
 ```bash
-# 1. Copy service file
+# 1. Modify service file path
+sed -i "s|path-to-repo|$(pwd)|g" custom-exporter.service
+
+# 2. Copy service file
 sudo cp ./custom-exporter.service /etc/systemd/system/
 
-# 2. enable and start the service
+# 3. enable and start the service
 sudo systemctl daemon-reload
 sudo systemctl enable custom-exporter
 sudo systemctl start custom-exporter
 
-# 3. check status
+# 4. check status
 sudo systemctl status custom-exporter
 ```
 
