@@ -99,13 +99,6 @@ example_command_metric{source="shell"} 42
 | `/health`  | Simple health check (`OK`)    |
 | `/`        | Serves static HTML (optional) |
 
-## Advanced Usage
-
-* Multiple exporters with different intervals and sources
-* Dynamic labels
-* Built-in metric caching
-* Error logging for failed fetches/parsing
-
 ## LICENSE
 MIT.
 
